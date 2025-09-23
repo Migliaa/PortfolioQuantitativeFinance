@@ -1,0 +1,63 @@
+defparam drawonlastbaronly = true
+DEFPARAM CALCULATEONLASTBARS = 5000
+//Inputs
+lookback = 40   //Lookback period. how many bars to calculate volume. (set as optimizable variable from software)
+res      = 15   //Resolution. number of bars of the chart. (optimizable)
+offset   = 0    //Offset (optimizable)
+scale    = 20   //lenght of the volume bars
+
+
+maxx    = highest[lookback](high)[offset]
+minn    = lowest[lookback](low)[offset]
+step    = (maxx - minn) / res
+volSum  = summation[lookback](volume)[offset] // sum volume over the last lookback bars starting from offsetet
+startbar = barindex + 7 //at least seven bars
+
+//Calculation POC
+for i = 0 to res - 1 do //for each bar of graph
+volSize = 0
+mybot = minn + (i * step)
+mytop = minn + ((i + 1) * step)
+$bottomboundaries[i] = mybot
+$topboundaries[i]    = mytop
+
+for j = offset to offset + lookback - 1 do
+if close[j] >= mybot and close[j] <= mytop then //for each bar of graph, sum the volume of every bar of chart that closes into range
+volSize = volSize + volume[j]
+endif
+next
+
+$VolLen[i] = volSize
+volbar = (volSize * res / volSum) * scale
+drawrectangle(startbar, mytop, startbar + volbar, mybot) fillcolor("black", 70)
+next
+
+for k = 0 to res - 1 do
+if $VolLen[k] = ArrayMax($VolLen) then
+x = k
+break
+endif
+next
+poc = ($topboundaries[x] + $bottomboundaries[x]) / 2
+
+
+//graphic
+drawrectangle(startbar, $topboundaries[x], startbar + ($VolLen[x] * res / volSum) * scale, $bottomboundaries[x]) fillcolor("yellow", 90)
+
+drawsegment(barindex, poc, startbar, poc) coloured("purple") style(dottedline)
+mypoc = round(poc, 2)
+
+drawtext("POC = #mypoc#", round((startbar + startbar + ($VolLen[x] * res / volSum) * scale) / 2), poc + 0.35 * tr) coloured("red")
+
+if close > poc then
+r = 0
+g = 255
+b = 80
+else
+r = 255
+g = 0
+b = 0
+endif
+colorbetween(close, poc, r, g, b, 50)
+
+return poc as "POC" coloured(r,g,b)
