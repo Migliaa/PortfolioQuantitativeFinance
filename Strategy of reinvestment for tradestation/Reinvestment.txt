@@ -1,0 +1,87 @@
+{function: Reinvestment in Easylanguage for Tradestation}
+
+Inputs:
+    Price(numericseries),			// = close
+    StopL(numericsimple),        	// = MySLL o MySLS
+    InitCapital(numericsimple),
+    RiskOnCapital(numericsimple),  // %
+    SProfit(numericsimple),        // = NetProfit dalla strategia o 0
+    RiskOnProfit(numericsimple),   // %
+    MaxPosition(numericsimple),
+    BPV(numericsimple);            // BigPointValue o 1 per azioni (= 2$ per @MNQ)
+ 
+{
+BigPointValue = $/valore tick.
+Ex: E-mini S&P
+BigPointValue = 50$/tick
+tick = 0.25 => valore tick = 0.25*50 = 12.50$
+
+Uso tipico:
+Vars: StopAmt(0);
+StopAmt = EntryPrice * 0.02 * BigPointValue;   // 2% di stop
+SetStopLoss(StopAmt);                          // $ per contratto
+}
+
+Vars: RiskBudget(0), PerContractRisk(0), Ps(0), Qty(0);
+
+RiskBudget     = InitCapital*(RiskOnCapital*0.01) + SProfit*(RiskOnProfit*0.01); //ex: 50 000 * (10*0.01) + profit * (20*0.01) = 5000 + profit*0.2
+PerContractRisk= Price*(StopL*0.01)*BPV; //ex: 24700*(0.08)*2 = 3950
+
+If PerContractRisk > 0 then
+    Ps = RiskBudget / PerContractRisk // 5000/3950 = 1.26
+else
+    Ps = 0;
+
+// floor in difetto e cap
+Qty = MinList(MaxPosition, MaxList(1, IntPortion(Ps)));
+
+// valore di ritorno:
+ReinvestStd = Qty;
+
+{
+ESEMPIO DI UTILIZZO 
+// --- reinvestimento ---
+SProfit = IFF(Reinvest=1, NetProfit, 0); 	//if reinvest ==1 then returns NetProfit else return 0						//!
+QtyL = ReinvestStd(Close, MySLL, InitCapital, RiskOnCapital, SProfit, RiskOnProfit, MaxPosition, BigPointValue);		//!
+QtyS = ReinvestStd(Close, MySLS, InitCapital, RiskOnCapital, SProfit, RiskOnProfit, MaxPosition, BigPointValue);		//!
+
+// --- ingressi ---
+if isWindow and canEnter then begin
+
+    // Long
+    if EntraLong = 1
+    and MyTriggerL and MyPtnLY and (not MyPtnLN) then
+        Buy ("LongEntry") QtyL contracts next bar at market; 															//QryL!!
+
+    // Short
+    if EntraShort = 1
+    and MyTriggerS and MyPtnSY and (not MyPtnSN) then
+        Sell Short ("ShortEntry") QtyS contracts next bar at market;													//QtyS!!
+
+end;
+
+// --- stop/target % convertiti in $ per contratto ---
+
+SetStopContract;																										//!!!
+
+if MarketPosition = 1 then begin
+    if MySLL > 0 then begin
+        StopAmt = EntryPrice * (MySLL * 0.01) * BigPointValue;
+        SetStopLoss(StopAmt);
+    end;
+    if MyTPL > 0 then begin
+        TPAmt = EntryPrice * (MyTPL * 0.01) * BigPointValue;
+        SetProfitTarget(TPAmt);
+    end;
+end;
+
+if MarketPosition = -1 then begin
+    if MySLS > 0 then begin
+        StopAmt = EntryPrice * (MySLS * 0.01) * BigPointValue;
+        SetStopLoss(StopAmt);
+    end;
+    if MyTPS > 0 then begin
+        TPAmt = EntryPrice * (MyTPS * 0.01) * BigPointValue;
+        SetProfitTarget(TPAmt);
+    end;
+end;}
